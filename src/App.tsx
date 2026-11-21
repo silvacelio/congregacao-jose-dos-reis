@@ -12,7 +12,7 @@ import { SystemCard } from './components/SystemCard';
 import { WelcomeModal } from './components/WelcomeModal';
 
 const WORKBOOK_SYSTEM_URL =
-  'https://apostila-vida-e-ministerio-bpwkswf4f-silvacelios-projects.vercel.app/';
+  'https://apostila-vida-e-ministerio.vercel.app/';
 const REPORT_SYSTEM_URL = 'https://relatorio-congregacao-5mld.vercel.app/';
 
 const AVAILABLE_RESOURCES = [
