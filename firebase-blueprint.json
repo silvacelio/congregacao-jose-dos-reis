@@ -1,0 +1,618 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "Perfil de Usuário",
+      "description": "Dados públicos básicos do usuário conectado e preferências de acessibilidade e tema.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "enum": ["anciao", "servo_ministerial", "estudante", "publicador"]
+        },
+        "participantId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "fontScale": {
+          "type": "string",
+          "enum": ["normal", "large", "xlarge"]
+        },
+        "theme": {
+          "type": "string",
+          "enum": ["light", "dark"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "role", "fontScale", "theme", "createdAt", "updatedAt"]
+    },
+    "UserPrivateContact": {
+      "title": "Contato Privado do Usuário",
+      "description": "Informações pessoais de contato (PII) isoladas do perfil público.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "UserNote": {
+      "title": "Anotação Pessoal",
+      "description": "Anotações privadas de preparação para partes ou comentários da Apostila semanal.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "weekId": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "partKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "partTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "content": {
+          "type": "string",
+          "maxLength": 8000
+        },
+        "scriptures": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "weekId", "partKey", "partTitle", "content", "updatedAt"]
+    },
+    "UserNotification": {
+      "title": "Notificação do Participante",
+      "description": "Alertas de novas designações ou publicações de escala semanal.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 600
+        },
+        "weekId": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "partTitle": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "title", "message", "weekId", "read", "createdAt"]
+    },
+    "ElderRecord": {
+      "title": "Registro de Ancião Autorizado",
+      "description": "Controle autoritativo de quem possui permissão administrativa para editar Apostila, Escala e Participantes.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "grantedBy": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "createdAt"]
+    },
+    "Participant": {
+      "title": "Participante da Congregação",
+      "description": "Irmãos e irmãs cadastrados (Anciãos, Servos Ministeriais e Estudantes) elegíveis para designações.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "category": {
+          "type": "string",
+          "enum": ["anciao", "servo_ministerial", "estudante"]
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "allowedParts": {
+          "type": "array"
+        },
+        "linkedUserId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "lastAssignedAt": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "lastAssignedPart": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["name", "category", "active", "allowedParts", "createdAt", "updatedAt"]
+    },
+    "ParticipantPrivateInfo": {
+      "title": "Informações Privadas do Participante",
+      "description": "Telefone e observações pastorais restritas exclusivamente aos anciãos.",
+      "type": "object",
+      "properties": {
+        "phone": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["updatedAt"]
+    },
+    "WeekWorkbook": {
+      "title": "Apostila Semanal Vida e Ministério",
+      "description": "Conteúdo semanal da reunião separado das escalas nominais, com campos editáveis semanalmente pelos anciãos.",
+      "type": "object",
+      "properties": {
+        "weekId": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "weekLabel": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 100
+        },
+        "startDate": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 20
+        },
+        "bibleReading": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "openingSong": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "transitionSong": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "closingSong": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "status": {
+          "type": "string",
+          "enum": ["rascunho", "publicada"]
+        },
+        "treasuresParts": {
+          "type": "array"
+        },
+        "ministryParts": {
+          "type": "array"
+        },
+        "christianLifeParts": {
+          "type": "array"
+        },
+        "cbsPublication": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "cbsLesson": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "cbsParagraphs": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "updatedBy": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "weekId",
+        "weekLabel",
+        "startDate",
+        "bibleReading",
+        "openingSong",
+        "transitionSong",
+        "closingSong",
+        "status",
+        "treasuresParts",
+        "ministryParts",
+        "christianLifeParts",
+        "cbsPublication",
+        "cbsLesson",
+        "cbsParagraphs",
+        "updatedBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "WeekSchedule": {
+      "title": "Escala de Designações Semanal",
+      "description": "Designações nominais da semana, mantidas separadas da Apostila.",
+      "type": "object",
+      "properties": {
+        "weekId": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "weekLabel": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 100
+        },
+        "status": {
+          "type": "string",
+          "enum": ["rascunho", "publicada"]
+        },
+        "chairmanId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "chairmanName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "openingPrayerId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "openingPrayerName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "closingPrayerId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "closingPrayerName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "treasuresAssignments": {
+          "type": "array"
+        },
+        "ministryAssignments": {
+          "type": "array"
+        },
+        "christianLifeAssignments": {
+          "type": "array"
+        },
+        "cbsConductorId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "cbsConductorName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "cbsReaderId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "cbsReaderName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "thursdayDate": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "salaBNote": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "sundayMeeting": {
+          "type": "object",
+          "description": "Designações da Reunião de Domingo (Presidente, Oração, A Sentinela, Indicadores, Microfone, Áudio/Vídeo, Zoom)."
+        },
+        "updatedBy": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "weekId",
+        "weekLabel",
+        "status",
+        "chairmanId",
+        "chairmanName",
+        "openingPrayerId",
+        "openingPrayerName",
+        "closingPrayerId",
+        "closingPrayerName",
+        "treasuresAssignments",
+        "ministryAssignments",
+        "christianLifeAssignments",
+        "cbsConductorId",
+        "cbsConductorName",
+        "cbsReaderId",
+        "cbsReaderName",
+        "updatedBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AssignmentHistory": {
+      "title": "Histórico de Designações",
+      "description": "Registro histórico das participações para consulta dos anciãos e transparência da congregação.",
+      "type": "object",
+      "properties": {
+        "participantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "participantName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "participantCategory": {
+          "type": "string",
+          "enum": ["anciao", "servo_ministerial", "estudante"]
+        },
+        "weekId": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "weekLabel": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 100
+        },
+        "meetingDate": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 20
+        },
+        "section": {
+          "type": "string",
+          "enum": ["presidencia", "tesouros", "ministerio", "vida_crista"]
+        },
+        "partTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "roleInPart": {
+          "type": "string",
+          "enum": ["titular", "ajudante", "presidente", "oracao", "dirigente", "leitor"]
+        },
+        "room": {
+          "type": "string",
+          "enum": ["Principal", "Sala B"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "participantId",
+        "participantName",
+        "participantCategory",
+        "weekId",
+        "weekLabel",
+        "meetingDate",
+        "section",
+        "partTitle",
+        "roleInPart",
+        "room",
+        "createdAt"
+      ]
+    },
+    "RegistrationRequest": {
+      "title": "Solicitação de Vínculo na Congregação",
+      "description": "Permite que um irmão recém-cadastrado peça vínculo ao seu nome na lista de participantes para receber notificações.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "requestedParticipantId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "requestedCategory": {
+          "type": "string",
+          "enum": ["anciao", "servo_ministerial", "estudante", "publicador"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pendente", "aprovado"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "requestedCategory", "status", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Perfis básicos e preferências de acessibilidade dos usuários."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateContact" },
+      "description": "Contatos privados (PII) isolados do perfil público."
+    },
+    "/users/{userId}/notes/{noteId}": {
+      "schema": { "$ref": "#/entities/UserNote" },
+      "description": "Anotações pessoais privadas de preparação da Apostila."
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/UserNotification" },
+      "description": "Notificações de designação para o usuário."
+    },
+    "/elders/{userId}": {
+      "schema": { "$ref": "#/entities/ElderRecord" },
+      "description": "Registro autoritativo dos anciãos com permissão de edição."
+    },
+    "/participants/{participantId}": {
+      "schema": { "$ref": "#/entities/Participant" },
+      "description": "Cadastro de participantes (Anciãos, Servos Ministeriais e Estudantes)."
+    },
+    "/participants/{participantId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/ParticipantPrivateInfo" },
+      "description": "Telefone e observações dos participantes restritas a anciãos."
+    },
+    "/weeks/{weekId}": {
+      "schema": { "$ref": "#/entities/WeekWorkbook" },
+      "description": "Apostila semanal Vida e Ministério (separada das escalas)."
+    },
+    "/schedules/{weekId}": {
+      "schema": { "$ref": "#/entities/WeekSchedule" },
+      "description": "Escala semanal de designações (separada da Apostila)."
+    },
+    "/assignmentHistory/{historyId}": {
+      "schema": { "$ref": "#/entities/AssignmentHistory" },
+      "description": "Histórico de designações cumpridas pelos participantes."
+    },
+    "/registrationRequests/{userId}": {
+      "schema": { "$ref": "#/entities/RegistrationRequest" },
+      "description": "Pedidos de vínculo de irmãos recém-cadastrados para aprovação dos anciãos."
+    }
+  }
+}

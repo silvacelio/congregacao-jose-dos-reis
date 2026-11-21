@@ -1,0 +1,6 @@
+{
+  "name": "Apostila Vida e Ministério — Congregação João dos Reis",
+  "description": "Organize a Apostila Vida e Ministério semanal, escalas de designações, preparação pessoal, participantes e histórico da Congregação João dos Reis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

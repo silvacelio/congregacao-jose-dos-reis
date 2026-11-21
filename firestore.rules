@@ -1,0 +1,468 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Global Helpers
+    // -------------------------------------------------------------------------
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isBootstrappedElder() {
+      return isSignedIn() && request.auth.token.email == 'silvaevangcelio@gmail.com';
+    }
+
+    function isElder() {
+      return isBootstrappedElder()
+        || (isSignedIn() && exists(/databases/$(database)/documents/elders/$(request.auth.uid)));
+    }
+
+    function isValidRole(role) {
+      return role in ['anciao', 'servo_ministerial', 'estudante', 'publicador'];
+    }
+
+    function isValidCategory(cat) {
+      return cat in ['anciao', 'servo_ministerial', 'estudante'];
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Blueprints
+    // -------------------------------------------------------------------------
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'role', 'fontScale', 'theme', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'role', 'participantId', 'fontScale', 'theme', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 120
+        && data.role is string && isValidRole(data.role)
+        && (!('participantId' in data) || (data.participantId is string && data.participantId.size() <= 128))
+        && data.fontScale is string && data.fontScale in ['normal', 'large', 'xlarge']
+        && data.theme is string && data.theme in ['light', 'dark']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivate(data) {
+      return data.keys().hasAll(['uid', 'email', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'phone', 'updatedAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.email is string && data.email.size() <= 200
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 40))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserNote(data, ownerUid) {
+      return data.keys().hasAll(['uid', 'weekId', 'partKey', 'partTitle', 'content', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'weekId', 'partKey', 'partTitle', 'content', 'scriptures', 'updatedAt'])
+        && data.uid is string && data.uid == ownerUid && data.uid.size() <= 128
+        && data.weekId is string && data.weekId.size() >= 4 && data.weekId.size() <= 32 && data.weekId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.partKey is string && data.partKey.size() >= 1 && data.partKey.size() <= 80
+        && data.partTitle is string && data.partTitle.size() >= 1 && data.partTitle.size() <= 180
+        && data.content is string && data.content.size() <= 8000
+        && (!('scriptures' in data) || (data.scriptures is string && data.scriptures.size() <= 400))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidNotification(data, ownerUid) {
+      return data.keys().hasAll(['uid', 'title', 'message', 'weekId', 'read', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'title', 'message', 'weekId', 'partTitle', 'read', 'createdAt'])
+        && data.uid is string && data.uid == ownerUid && data.uid.size() <= 128
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 600
+        && data.weekId is string && data.weekId.size() >= 4 && data.weekId.size() <= 32 && data.weekId.matches('^[a-zA-Z0-9_\\-]+$')
+        && (!('partTitle' in data) || (data.partTitle is string && data.partTitle.size() <= 160))
+        && data.read is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidElderRecord(data, elderUid) {
+      return data.keys().hasAll(['uid', 'displayName', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'grantedBy', 'createdAt'])
+        && data.uid is string && data.uid == elderUid && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 120
+        && (!('email' in data) || (data.email is string && data.email.size() <= 200))
+        && (!('grantedBy' in data) || (data.grantedBy is string && data.grantedBy.size() <= 128))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidParticipant(data) {
+      return data.keys().hasAll(['name', 'category', 'active', 'allowedParts', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'category', 'active', 'allowedParts', 'linkedUserId', 'lastAssignedAt', 'lastAssignedPart', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
+        && data.category is string && isValidCategory(data.category)
+        && data.active is bool
+        && data.allowedParts is list && data.allowedParts.size() <= 12
+        && (data.allowedParts.size() == 0 || data.allowedParts[0] is string)
+        && (!('linkedUserId' in data) || (data.linkedUserId is string && data.linkedUserId.size() <= 128))
+        && (!('lastAssignedAt' in data) || (data.lastAssignedAt is string && data.lastAssignedAt.size() <= 40))
+        && (!('lastAssignedPart' in data) || (data.lastAssignedPart is string && data.lastAssignedPart.size() <= 140))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidParticipantPrivate(data) {
+      return data.keys().hasAll(['updatedAt'])
+        && data.keys().hasOnly(['phone', 'notes', 'updatedAt'])
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 40))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWeekWorkbook(data) {
+      return data.keys().hasAll([
+          'weekId', 'weekLabel', 'startDate', 'bibleReading',
+          'openingSong', 'transitionSong', 'closingSong', 'status',
+          'treasuresParts', 'ministryParts', 'christianLifeParts',
+          'cbsPublication', 'cbsLesson', 'cbsParagraphs',
+          'updatedBy', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'weekId', 'weekLabel', 'startDate', 'bibleReading',
+          'openingSong', 'transitionSong', 'closingSong', 'status',
+          'treasuresParts', 'ministryParts', 'christianLifeParts',
+          'cbsPublication', 'cbsLesson', 'cbsParagraphs',
+          'updatedBy', 'createdAt', 'updatedAt'
+        ])
+        && data.weekId is string && data.weekId.size() >= 4 && data.weekId.size() <= 32 && data.weekId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.weekLabel is string && data.weekLabel.size() >= 3 && data.weekLabel.size() <= 100
+        && data.startDate is string && data.startDate.size() >= 8 && data.startDate.size() <= 20
+        && data.bibleReading is string && data.bibleReading.size() <= 120
+        && data.openingSong is string && data.openingSong.size() <= 20
+        && data.transitionSong is string && data.transitionSong.size() <= 20
+        && data.closingSong is string && data.closingSong.size() <= 20
+        && data.status is string && data.status in ['rascunho', 'publicada']
+        && data.treasuresParts is list && data.treasuresParts.size() <= 10
+        && (data.treasuresParts.size() == 0 || data.treasuresParts[0] is map)
+        && data.ministryParts is list && data.ministryParts.size() <= 10
+        && (data.ministryParts.size() == 0 || data.ministryParts[0] is map)
+        && data.christianLifeParts is list && data.christianLifeParts.size() <= 10
+        && (data.christianLifeParts.size() == 0 || data.christianLifeParts[0] is map)
+        && data.cbsPublication is string && data.cbsPublication.size() <= 160
+        && data.cbsLesson is string && data.cbsLesson.size() <= 160
+        && data.cbsParagraphs is string && data.cbsParagraphs.size() <= 80
+        && data.updatedBy is string && data.updatedBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSundayMeeting(m) {
+      return m is map
+        && m.keys().hasOnly([
+          'date', 'speaker', 'talkTheme', 'chairman', 'openingPrayer',
+          'watchtowerConductor', 'watchtowerReader', 'attendants',
+          'micHandlers', 'videoOperator', 'audioOperator', 'zoomAttendant', 'closingPrayer'
+        ])
+        && (!('date' in m) || (m.date is string && m.date.size() <= 20))
+        && (!('speaker' in m) || (m.speaker is string && m.speaker.size() <= 120))
+        && (!('talkTheme' in m) || (m.talkTheme is string && m.talkTheme.size() <= 160))
+        && (!('chairman' in m) || (m.chairman is string && m.chairman.size() <= 120))
+        && (!('openingPrayer' in m) || (m.openingPrayer is string && m.openingPrayer.size() <= 120))
+        && (!('watchtowerConductor' in m) || (m.watchtowerConductor is string && m.watchtowerConductor.size() <= 120))
+        && (!('watchtowerReader' in m) || (m.watchtowerReader is string && m.watchtowerReader.size() <= 120))
+        && (!('attendants' in m) || (m.attendants is string && m.attendants.size() <= 120))
+        && (!('micHandlers' in m) || (m.micHandlers is string && m.micHandlers.size() <= 120))
+        && (!('videoOperator' in m) || (m.videoOperator is string && m.videoOperator.size() <= 120))
+        && (!('audioOperator' in m) || (m.audioOperator is string && m.audioOperator.size() <= 120))
+        && (!('zoomAttendant' in m) || (m.zoomAttendant is string && m.zoomAttendant.size() <= 120))
+        && (!('closingPrayer' in m) || (m.closingPrayer is string && m.closingPrayer.size() <= 120));
+    }
+
+    function isValidWeekSchedule(data) {
+      return data.keys().hasAll([
+          'weekId', 'weekLabel', 'status',
+          'chairmanId', 'chairmanName', 'openingPrayerId', 'openingPrayerName',
+          'closingPrayerId', 'closingPrayerName',
+          'treasuresAssignments', 'ministryAssignments', 'christianLifeAssignments',
+          'cbsConductorId', 'cbsConductorName', 'cbsReaderId', 'cbsReaderName',
+          'updatedBy', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'weekId', 'weekLabel', 'status',
+          'chairmanId', 'chairmanName', 'openingPrayerId', 'openingPrayerName',
+          'closingPrayerId', 'closingPrayerName',
+          'treasuresAssignments', 'ministryAssignments', 'christianLifeAssignments',
+          'cbsConductorId', 'cbsConductorName', 'cbsReaderId', 'cbsReaderName',
+          'thursdayDate', 'salaBNote', 'sundayMeeting',
+          'publishedAt', 'updatedBy', 'createdAt', 'updatedAt'
+        ])
+        && data.weekId is string && data.weekId.size() >= 4 && data.weekId.size() <= 32 && data.weekId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.weekLabel is string && data.weekLabel.size() >= 3 && data.weekLabel.size() <= 100
+        && data.status is string && data.status in ['rascunho', 'publicada']
+        && data.chairmanId is string && data.chairmanId.size() <= 128
+        && data.chairmanName is string && data.chairmanName.size() <= 120
+        && data.openingPrayerId is string && data.openingPrayerId.size() <= 128
+        && data.openingPrayerName is string && data.openingPrayerName.size() <= 120
+        && data.closingPrayerId is string && data.closingPrayerId.size() <= 128
+        && data.closingPrayerName is string && data.closingPrayerName.size() <= 120
+        && data.treasuresAssignments is list && data.treasuresAssignments.size() <= 10
+        && (data.treasuresAssignments.size() == 0 || data.treasuresAssignments[0] is map)
+        && data.ministryAssignments is list && data.ministryAssignments.size() <= 10
+        && (data.ministryAssignments.size() == 0 || data.ministryAssignments[0] is map)
+        && data.christianLifeAssignments is list && data.christianLifeAssignments.size() <= 10
+        && (data.christianLifeAssignments.size() == 0 || data.christianLifeAssignments[0] is map)
+        && data.cbsConductorId is string && data.cbsConductorId.size() <= 128
+        && data.cbsConductorName is string && data.cbsConductorName.size() <= 120
+        && data.cbsReaderId is string && data.cbsReaderId.size() <= 128
+        && data.cbsReaderName is string && data.cbsReaderName.size() <= 120
+        && (!('thursdayDate' in data) || (data.thursdayDate is string && data.thursdayDate.size() <= 20))
+        && (!('salaBNote' in data) || (data.salaBNote is string && data.salaBNote.size() <= 120))
+        && (!('sundayMeeting' in data) || isValidSundayMeeting(data.sundayMeeting))
+        && (!('publishedAt' in data) || data.publishedAt is timestamp)
+        && data.updatedBy is string && data.updatedBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAssignmentHistory(data) {
+      return data.keys().hasAll([
+          'participantId', 'participantName', 'participantCategory',
+          'weekId', 'weekLabel', 'meetingDate', 'section',
+          'partTitle', 'roleInPart', 'room', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'participantId', 'participantName', 'participantCategory',
+          'weekId', 'weekLabel', 'meetingDate', 'section',
+          'partTitle', 'roleInPart', 'room', 'createdAt'
+        ])
+        && data.participantId is string && data.participantId.size() >= 1 && data.participantId.size() <= 128 && data.participantId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.participantName is string && data.participantName.size() >= 2 && data.participantName.size() <= 120
+        && data.participantCategory is string && isValidCategory(data.participantCategory)
+        && data.weekId is string && data.weekId.size() >= 4 && data.weekId.size() <= 32 && data.weekId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.weekLabel is string && data.weekLabel.size() >= 3 && data.weekLabel.size() <= 100
+        && data.meetingDate is string && data.meetingDate.size() >= 8 && data.meetingDate.size() <= 20
+        && data.section is string && data.section in ['presidencia', 'tesouros', 'ministerio', 'vida_crista']
+        && data.partTitle is string && data.partTitle.size() >= 1 && data.partTitle.size() <= 180
+        && data.roleInPart is string && data.roleInPart in ['titular', 'ajudante', 'presidente', 'oracao', 'dirigente', 'leitor']
+        && data.room is string && data.room in ['Principal', 'Sala B']
+        && data.createdAt is timestamp;
+    }
+
+    function isValidRegistrationRequest(data, ownerUid) {
+      return data.keys().hasAll(['uid', 'displayName', 'requestedCategory', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'requestedParticipantId', 'requestedCategory', 'status', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid == ownerUid && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 120
+        && (!('requestedParticipantId' in data) || (data.requestedParticipantId is string && data.requestedParticipantId.size() <= 128))
+        && data.requestedCategory is string && data.requestedCategory in ['anciao', 'servo_ministerial', 'estudante', 'publicador']
+        && data.status is string && data.status in ['pendente', 'aprovado']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection Rules
+    // -------------------------------------------------------------------------
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isElder());
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isElder() || incoming().role in ['servo_ministerial', 'estudante', 'publicador']);
+
+      allow update: if isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isElder()
+          || (
+            isOwner(userId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'fontScale', 'theme', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isValidId(userId) && isElder();
+
+      match /private/{docId} {
+        allow get: if isValidId(userId) && isValidId(docId) && (isOwner(userId) || isElder());
+        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
+        allow create, update: if isValidId(userId) && isValidId(docId)
+          && (isOwner(userId) || isElder())
+          && isValidUserPrivate(incoming())
+          && incoming().uid == userId
+          && incoming().updatedAt == request.time;
+        allow delete: if isValidId(userId) && isValidId(docId) && (isOwner(userId) || isElder());
+      }
+
+      match /notes/{noteId} {
+        allow get: if isValidId(userId) && isValidId(noteId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
+        allow create, update: if isValidId(userId) && isValidId(noteId)
+          && isOwner(userId)
+          && isValidUserNote(incoming(), userId)
+          && incoming().updatedAt == request.time;
+        allow delete: if isValidId(userId) && isValidId(noteId) && isOwner(userId);
+      }
+
+      match /notifications/{notificationId} {
+        allow get: if isValidId(userId) && isValidId(notificationId) && (isOwner(userId) || isElder());
+        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(notificationId)
+          && isElder()
+          && isValidNotification(incoming(), userId)
+          && incoming().createdAt == request.time;
+        allow update: if isValidId(userId) && isValidId(notificationId)
+          && isValidNotification(incoming(), userId)
+          && incoming().createdAt == existing().createdAt
+          && (
+            isElder()
+            || (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['read']))
+          );
+        allow delete: if isValidId(userId) && isValidId(notificationId) && (isOwner(userId) || isElder());
+      }
+    }
+
+    match /elders/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isElder());
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isValidId(userId)
+        && (isElder() || (isBootstrappedElder() && isOwner(userId)))
+        && isValidElderRecord(incoming(), userId)
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(userId)
+        && isElder()
+        && isValidElderRecord(incoming(), userId)
+        && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(userId) && isElder() && userId != request.auth.uid;
+    }
+
+    match /participants/{participantId} {
+      allow get: if isValidId(participantId) && isSignedIn();
+      allow list: if isSignedIn() && resource.data.category in ['anciao', 'servo_ministerial', 'estudante'];
+
+      allow create: if isValidId(participantId)
+        && isElder()
+        && isValidParticipant(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(participantId)
+        && isElder()
+        && isValidParticipant(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(participantId) && isElder();
+
+      match /private/{docId} {
+        allow get: if isValidId(participantId) && isValidId(docId) && isElder();
+        allow list: if isElder() && resource.data.updatedAt != null;
+        allow create, update: if isValidId(participantId) && isValidId(docId)
+          && isElder()
+          && isValidParticipantPrivate(incoming())
+          && incoming().updatedAt == request.time;
+        allow delete: if isValidId(participantId) && isValidId(docId) && isElder();
+      }
+    }
+
+    match /weeks/{weekId} {
+      allow get: if isValidId(weekId) && isSignedIn() && (resource.data.status == 'publicada' || isElder());
+      allow list: if isSignedIn() && (resource.data.status == 'publicada' || resource.data.updatedBy == request.auth.uid || isBootstrappedElder());
+
+      allow create: if isValidId(weekId)
+        && isElder()
+        && isValidWeekWorkbook(incoming())
+        && incoming().weekId == weekId
+        && incoming().updatedBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(weekId)
+        && isElder()
+        && isValidWeekWorkbook(incoming())
+        && incoming().weekId == existing().weekId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedBy == request.auth.uid
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(weekId) && isElder();
+    }
+
+    match /schedules/{weekId} {
+      allow get: if isValidId(weekId) && isSignedIn() && (resource.data.status == 'publicada' || isElder());
+      allow list: if isSignedIn() && (resource.data.status == 'publicada' || resource.data.updatedBy == request.auth.uid || isBootstrappedElder());
+
+      allow create: if isValidId(weekId)
+        && isElder()
+        && isValidWeekSchedule(incoming())
+        && incoming().weekId == weekId
+        && incoming().updatedBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(weekId)
+        && isElder()
+        && isValidWeekSchedule(incoming())
+        && incoming().weekId == existing().weekId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedBy == request.auth.uid
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(weekId) && isElder();
+    }
+
+    match /assignmentHistory/{historyId} {
+      allow get: if isValidId(historyId) && isSignedIn();
+      allow list: if isSignedIn() && resource.data.section in ['presidencia', 'tesouros', 'ministerio', 'vida_crista'];
+
+      allow create: if isValidId(historyId)
+        && isElder()
+        && isValidAssignmentHistory(incoming())
+        && incoming().createdAt == request.time;
+
+      allow update, delete: if isValidId(historyId) && isElder();
+    }
+
+    match /registrationRequests/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isElder());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || resource.data.status in ['pendente', 'aprovado']);
+
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidRegistrationRequest(incoming(), userId)
+        && incoming().status == 'pendente'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(userId)
+        && isValidRegistrationRequest(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isElder()
+          || (isOwner(userId) && existing().status == 'pendente' && incoming().status == 'pendente')
+        );
+
+      allow delete: if isValidId(userId) && (isElder() || isOwner(userId));
+    }
+  }
+}
